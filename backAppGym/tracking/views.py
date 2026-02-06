@@ -27,7 +27,8 @@ class WorkoutLogViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        if user.is_admin:
+        # Verificar rol de admin correctamente
+        if user.role == 'ADMIN':
             return WorkoutLog.objects.filter(is_active=True).select_related('workout_day', 'user')
         return WorkoutLog.objects.filter(user=user, is_active=True).select_related('workout_day')
     
@@ -105,7 +106,8 @@ class SetLogViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        if user.is_admin:
+        # Verificar rol de admin correctamente
+        if user.role == 'ADMIN':
             return SetLog.objects.filter(is_active=True).select_related('exercise', 'workout_log')
         return SetLog.objects.filter(
             workout_log__user=user,

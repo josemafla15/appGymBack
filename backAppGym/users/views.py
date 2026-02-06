@@ -2,16 +2,22 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
 from core.permissions import IsAdmin
 from .serializers import (
     UserSerializer,
     UserRegistrationSerializer,
-    UserDetailSerializer
+    UserDetailSerializer,
+    CustomTokenObtainPairSerializer
 )
 
 User = get_user_model()
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """Vista personalizada para obtener JWT token con información del usuario"""
+    serializer_class = CustomTokenObtainPairSerializer
 
 
 class UserViewSet(viewsets.ModelViewSet):
