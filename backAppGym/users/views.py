@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
 from core.permissions import IsAdmin
+from assignments.models import UserWeekAssignment  # NUEVO IMPORT
 from .serializers import (
     UserSerializer,
     UserRegistrationSerializer,
@@ -46,6 +47,39 @@ class UserViewSet(viewsets.ModelViewSet):
             return UserRegistrationSerializer
         return UserSerializer
     
+    # MÉTODO ACTUALIZADO - Agrega info de asignaciones
+    def list(self, request):
+        """
+        Listar usuarios con información de asignación actual
+        """
+        users = User.objects.filter(is_active=True).order_by('email')
+        
+        users_data = []
+        for user in users:
+            # Obtener asignación activa del usuario
+            try:
+                assignment = UserWeekAssignment.objects.get(
+                    user=user,
+                    is_active=True
+                )
+                current_assignment = {
+                    'week_template_name': assignment.week_template.name,
+                    'start_date': assignment.start_date.strftime('%Y-%m-%d')
+                }
+            except UserWeekAssignment.DoesNotExist:
+                current_assignment = None
+            
+            # Serializar datos básicos del usuario
+            user_serializer = self.get_serializer(user)
+            user_data = user_serializer.data
+            
+            # Agregar info de asignación
+            user_data['current_assignment'] = current_assignment
+            
+            users_data.append(user_data)
+        
+        return Response(users_data)
+    
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
         """Get current user profile"""
@@ -63,3 +97,20 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_201_CREATED
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    # MÉTODO NUEVO - Stats de usuarios (opcional pero útil)
+    @action(detail=False, methods=['get'], permission_classes=[IsAdmin])
+    def stats(self, request):
+        """
+        Obtener estadísticas de usuarios
+        """
+        total_users = User.objects.filter(is_active=True).count()
+        users_with_assignment = UserWeekAssignment.objects.filter(
+            is_active=True
+        ).values('user').distinct().count()
+        
+        return Response({
+            'total_users': total_users,
+            'users_with_assignment': users_with_assignment,
+            'users_without_assignment': total_users - users_with_assignment
+        })

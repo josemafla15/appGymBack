@@ -11,10 +11,10 @@ from workouts.models import (
 
 class UserWeekAssignment(BaseModel):
     """Assigns a workout week template to a user"""
-    user = models.OneToOneField(
+    user = models.ForeignKey(  # CAMBIADO: OneToOneField → ForeignKey
         User,
         on_delete=models.CASCADE,
-        related_name='week_assignment'
+        related_name='week_assignments'  # CAMBIADO: plural
     )
     week_template = models.ForeignKey(
         WorkoutWeekTemplate,
@@ -25,12 +25,22 @@ class UserWeekAssignment(BaseModel):
     
     class Meta:
         db_table = 'user_week_assignments'
+        # AGREGADO: Constraint para evitar duplicados de semana activa
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'week_template', 'start_date'],
+                name='unique_user_week_start'
+            ),
+        ]
         indexes = [
             models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['user', 'start_date']),  # NUEVO: Para queries por fecha
         ]
+        ordering = ['-start_date']  # NUEVO: Más recientes primero
     
     def __str__(self):
-        return f"{self.user.email} - {self.week_template.name}"
+        status = "Active" if self.is_active else "Inactive"
+        return f"{self.user.email} - {self.week_template.name} ({status})"
 
 
 class UserCustomWorkoutDay(BaseModel):
