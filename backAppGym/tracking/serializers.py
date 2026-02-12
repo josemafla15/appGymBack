@@ -26,7 +26,7 @@ class WorkoutLogSerializer(serializers.ModelSerializer):
     """
     Serializer para WorkoutLog
     
-    ✅ Acepta tanto workout_day como workout_day_id para compatibilidad
+    ✅ SOLUCIÓN: NO usar to_internal_value(), solo create()
     """
     workout_day_name = serializers.CharField(
         source='workout_day.name',
@@ -39,6 +39,9 @@ class WorkoutLogSerializer(serializers.ModelSerializer):
     set_logs = SetLogSerializer(many=True, read_only=True)
     user_email = serializers.EmailField(source='user.email', read_only=True)
     
+    # ✅ Campo write-only para aceptar el ID desde el frontend
+    workout_day_id = serializers.IntegerField(write_only=True, required=False)
+    
     class Meta:
         model = WorkoutLog
         fields = [
@@ -46,6 +49,7 @@ class WorkoutLogSerializer(serializers.ModelSerializer):
             'user',
             'user_email',
             'workout_day',
+            'workout_day_id',
             'workout_day_name',
             'workout_day_type',
             'day_order',
@@ -58,17 +62,37 @@ class WorkoutLogSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+        # ✅ CRÍTICO: Hacer workout_day opcional para que NO falle la validación
+        extra_kwargs = {
+            'workout_day': {'required': False}
+        }
     
-    def to_internal_value(self, data):
+    # ❌ NO USAR to_internal_value() - ELIMINADO COMPLETAMENTE
+    
+    def validate(self, attrs):
         """
-        ✅ SOLUCIÓN: Convertir workout_day_id a workout_day antes de validar
+        ✅ Validar y convertir workout_day_id → workout_day
         """
-        # Si viene workout_day_id en lugar de workout_day, convertirlo
-        if 'workout_day_id' in data and 'workout_day' not in data:
-            data = data.copy()  # Hacer una copia para no mutar el original
-            data['workout_day'] = data.pop('workout_day_id')
+        workout_day_id = attrs.pop('workout_day_id', None)
         
-        return super().to_internal_value(data)
+        # Si viene workout_day_id, convertir a objeto
+        if workout_day_id is not None:
+            from workouts.models import WorkoutDayTemplate
+            try:
+                workout_day = WorkoutDayTemplate.objects.get(id=workout_day_id, is_active=True)
+                attrs['workout_day'] = workout_day
+            except WorkoutDayTemplate.DoesNotExist:
+                raise serializers.ValidationError({
+                    'workout_day_id': 'Workout day template not found or inactive'
+                })
+        
+        # Verificar que workout_day esté presente
+        if 'workout_day' not in attrs:
+            raise serializers.ValidationError({
+                'workout_day': 'Either workout_day or workout_day_id is required'
+            })
+        
+        return attrs
 
 
 class WorkoutLogListSerializer(serializers.ModelSerializer):
