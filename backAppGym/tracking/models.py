@@ -1,76 +1,92 @@
 from django.db import models
-from django.core.validators import MinValueValidator
-from core.models import BaseModel
 from users.models import User
 from workouts.models import WorkoutDayTemplate
-from exercises.models import Exercise
+from assignments.models import UserWeekAssignment
 
 
-class WorkoutLog(BaseModel):
-    """Log of a completed workout day"""
+class SetLog(models.Model):
+    """Registro de una serie individual dentro de un workout log"""
+    
+    workout_log = models.ForeignKey(
+        'WorkoutLog',
+        on_delete=models.CASCADE,
+        related_name='set_logs'
+    )
+    
+    exercise = models.ForeignKey(
+        'exercises.Exercise',
+        on_delete=models.CASCADE
+    )
+    
+    set_number = models.IntegerField()
+    reps = models.IntegerField()
+    weight = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    notes = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        db_table = 'set_logs'
+        ordering = ['set_number']
+    
+    def __str__(self):
+        return f"Set {self.set_number}: {self.exercise.name} - {self.reps} reps @ {self.weight}kg"
+
+
+class WorkoutLog(models.Model):
+    """
+    Registro de entrenamientos completados por usuario
+    
+    ✅ ACTUALIZADO: Ahora incluye day_order para diferenciar días 
+    con el mismo template en diferentes posiciones de la semana
+    """
+    
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name='workout_logs'
     )
+    
     workout_day = models.ForeignKey(
         WorkoutDayTemplate,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name='logs'
     )
-    date = models.DateField(db_index=True)
-    completed = models.BooleanField(default=False)
+    
+    # ✅ NUEVO: Posición del día en la semana
+    day_order = models.IntegerField(
+        default=1,
+        help_text="Posición del día en la semana (1, 2, 3, etc.)"
+    )
+    
+    # ✅ NUEVO (OPCIONAL): Referencia a la asignación de semana
+    week_assignment = models.ForeignKey(
+        UserWeekAssignment,
+        on_delete=models.CASCADE,
+        related_name='workout_logs',
+        null=True,
+        blank=True,
+        help_text="Asignación de semana a la que pertenece este log"
+    )
+    
+    date = models.DateField()
+    completed = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
     
     class Meta:
         db_table = 'workout_logs'
-        ordering = ['-date', '-created_at']
-        unique_together = [['user', 'workout_day', 'date']]
-        indexes = [
-            models.Index(fields=['user', 'date']),
-            models.Index(fields=['user', 'completed']),
+        # ✅ IMPORTANTE: Unique constraint para evitar duplicados
+        # Un usuario no puede tener dos logs del mismo día (workout_day + day_order) en la misma fecha
+        unique_together = [
+            ('user', 'workout_day', 'day_order', 'date')
         ]
+        ordering = ['-date', 'day_order']
     
     def __str__(self):
-        return f"{self.user.email} - {self.workout_day} - {self.date}"
-
-
-class SetLog(BaseModel):
-    """Log of individual sets performed"""
-    workout_log = models.ForeignKey(
-        WorkoutLog,
-        on_delete=models.CASCADE,
-        related_name='set_logs'
-    )
-    exercise = models.ForeignKey(
-        Exercise,
-        on_delete=models.PROTECT,
-        related_name='set_logs'
-    )
-    set_number = models.PositiveIntegerField(
-        validators=[MinValueValidator(1)]
-    )
-    reps = models.PositiveIntegerField(
-        validators=[MinValueValidator(0)]
-    )
-    weight = models.DecimalField(
-        max_digits=6,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(0)]
-    )
-    
-    class Meta:
-        db_table = 'set_logs'
-        ordering = ['workout_log', 'exercise', 'set_number']
-        unique_together = [['workout_log', 'exercise', 'set_number']]
-        indexes = [
-            models.Index(fields=['workout_log', 'exercise']),
-        ]
-    
-    def __str__(self):
-        return (
-            f"{self.workout_log.user.email} - {self.exercise.name} - "
-            f"Set {self.set_number}: {self.reps} reps"
-        )
+        return f"{self.user.email} - Day {self.day_order}: {self.workout_day.name} - {self.date}"

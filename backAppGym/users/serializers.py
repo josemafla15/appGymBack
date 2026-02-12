@@ -28,7 +28,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'role', 'first_name', 'last_name', 'date_joined']
+        fields = [
+            'id', 
+            'email', 
+            'username', 
+            'role', 
+            'first_name', 
+            'last_name', 
+            'is_active',      # ← AGREGADO: Este campo faltaba
+            'date_joined'
+        ]
         read_only_fields = ['id', 'date_joined']
 
 
@@ -54,5 +63,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'role', 'first_name', 'last_name', 'date_joined', 'is_active']
+        fields = [
+            'id', 
+            'email', 
+            'username', 
+            'role', 
+            'first_name', 
+            'last_name', 
+            'date_joined', 
+            'is_active'      # ← AGREGADO: También aquí
+        ]
         read_only_fields = ['id', 'email', 'role', 'date_joined']

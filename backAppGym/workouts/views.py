@@ -112,9 +112,14 @@ class WorkoutWeekTemplateViewSet(viewsets.ModelViewSet):
         return [permission() for permission in permission_classes]
     
     def get_serializer_class(self):
-        if self.action == 'list':
-            return WorkoutWeekTemplateListSerializer
+        # ✅ FIX: SIEMPRE usar el serializer completo que incluye days
+        # El frontend necesita el array completo de días para mostrar en el dropdown
         return WorkoutWeekTemplateSerializer
+        
+        # ANTES (causaba el problema):
+        # if self.action == 'list':
+        #     return WorkoutWeekTemplateListSerializer
+        # return WorkoutWeekTemplateSerializer
     
     @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def add_day(self, request, pk=None):

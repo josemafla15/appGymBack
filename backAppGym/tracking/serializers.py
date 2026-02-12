@@ -1,74 +1,87 @@
 from rest_framework import serializers
-from exercises.serializers import ExerciseListSerializer
-from workouts.serializers import WorkoutDayTemplateSerializer
-from workouts.models import WorkoutDayTemplate
-from exercises.models import Exercise
 from .models import WorkoutLog, SetLog
 
 
 class SetLogSerializer(serializers.ModelSerializer):
-    exercise = ExerciseListSerializer(read_only=True)
-    exercise_id = serializers.PrimaryKeyRelatedField(
-        queryset=Exercise.objects.filter(is_active=True),
-        source='exercise',
-        write_only=True
-    )
+    exercise_name = serializers.CharField(source='exercise.name', read_only=True)
     
     class Meta:
         model = SetLog
         fields = [
             'id',
+            'workout_log',
             'exercise',
-            'exercise_id',
+            'exercise_name',
             'set_number',
             'reps',
             'weight',
+            'notes',
             'created_at',
+            'updated_at'
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class WorkoutLogSerializer(serializers.ModelSerializer):
-    workout_day = WorkoutDayTemplateSerializer(read_only=True)
-    workout_day_id = serializers.PrimaryKeyRelatedField(
-        queryset=WorkoutDayTemplate.objects.filter(is_active=True),
-        source='workout_day',
-        write_only=True
+    """
+    Serializer para WorkoutLog
+    
+    ✅ Acepta tanto workout_day como workout_day_id para compatibilidad
+    """
+    workout_day_name = serializers.CharField(
+        source='workout_day.name',
+        read_only=True
+    )
+    workout_day_type = serializers.CharField(
+        source='workout_day.type',
+        read_only=True
     )
     set_logs = SetLogSerializer(many=True, read_only=True)
+    user_email = serializers.EmailField(source='user.email', read_only=True)
     
     class Meta:
         model = WorkoutLog
         fields = [
             'id',
             'user',
+            'user_email',
             'workout_day',
-            'workout_day_id',
+            'workout_day_name',
+            'workout_day_type',
+            'day_order',
+            'week_assignment',
             'date',
             'completed',
             'notes',
             'set_logs',
             'created_at',
-            'updated_at',
+            'updated_at'
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+    
+    def to_internal_value(self, data):
+        """
+        ✅ SOLUCIÓN: Convertir workout_day_id a workout_day antes de validar
+        """
+        # Si viene workout_day_id en lugar de workout_day, convertirlo
+        if 'workout_day_id' in data and 'workout_day' not in data:
+            data = data.copy()  # Hacer una copia para no mutar el original
+            data['workout_day'] = data.pop('workout_day_id')
+        
+        return super().to_internal_value(data)
 
 
 class WorkoutLogListSerializer(serializers.ModelSerializer):
+    """Serializer simplificado para listas"""
     workout_day_name = serializers.CharField(source='workout_day.name', read_only=True)
-    workout_day_type = serializers.CharField(source='workout_day.get_type_display', read_only=True)
-    total_sets = serializers.SerializerMethodField()
     
     class Meta:
         model = WorkoutLog
         fields = [
             'id',
+            'workout_day',
             'workout_day_name',
-            'workout_day_type',
+            'day_order',
             'date',
-            'completed',
-            'total_sets',
+            'completed'
         ]
-    
-    def get_total_sets(self, obj):
-        return obj.set_logs.filter(is_active=True).count()
