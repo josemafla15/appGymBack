@@ -26,7 +26,8 @@ class WorkoutLogSerializer(serializers.ModelSerializer):
     """
     Serializer para WorkoutLog
     
-    ✅ SOLUCIÓN: NO usar to_internal_value(), solo create()
+    ✅ SOLUCIÓN: NO usar to_internal_value(), solo validate()
+    ✅ FIX: Asegurar que completed sea False por defecto
     """
     workout_day_name = serializers.CharField(
         source='workout_day.name',
@@ -64,35 +65,40 @@ class WorkoutLogSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
         # ✅ CRÍTICO: Hacer workout_day opcional para que NO falle la validación
         extra_kwargs = {
-            'workout_day': {'required': False}
+            'workout_day': {'required': False},
+            'completed': {'required': False}  # ✅ NUEVO: completed también opcional
         }
     
-    # ❌ NO USAR to_internal_value() - ELIMINADO COMPLETAMENTE
-    
     def validate(self, attrs):
-        """
-        ✅ Validar y convertir workout_day_id → workout_day
-        """
-        workout_day_id = attrs.pop('workout_day_id', None)
+
+        # ✅ SOLO validar en creación
+        if self.instance is None:
         
-        # Si viene workout_day_id, convertir a objeto
-        if workout_day_id is not None:
-            from workouts.models import WorkoutDayTemplate
-            try:
-                workout_day = WorkoutDayTemplate.objects.get(id=workout_day_id, is_active=True)
-                attrs['workout_day'] = workout_day
-            except WorkoutDayTemplate.DoesNotExist:
+            workout_day_id = attrs.pop('workout_day_id', None)
+    
+            if workout_day_id is not None:
+                from workouts.models import WorkoutDayTemplate
+                try:
+                    workout_day = WorkoutDayTemplate.objects.get(
+                        id=workout_day_id,
+                        is_active=True
+                    )
+                    attrs['workout_day'] = workout_day
+                except WorkoutDayTemplate.DoesNotExist:
+                    raise serializers.ValidationError({
+                        'workout_day_id': 'Workout day template not found or inactive'
+                    })
+    
+            if 'workout_day' not in attrs:
                 raise serializers.ValidationError({
-                    'workout_day_id': 'Workout day template not found or inactive'
+                    'workout_day': 'Either workout_day or workout_day_id is required'
                 })
-        
-        # Verificar que workout_day esté presente
-        if 'workout_day' not in attrs:
-            raise serializers.ValidationError({
-                'workout_day': 'Either workout_day or workout_day_id is required'
-            })
-        
+    
+            if 'completed' not in attrs:
+                attrs['completed'] = False
+    
         return attrs
+
 
 
 class WorkoutLogListSerializer(serializers.ModelSerializer):

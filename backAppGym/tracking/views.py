@@ -14,6 +14,8 @@ class WorkoutLogViewSet(viewsets.ModelViewSet):
     CRUD para logs de entrenamientos
     
     ✅ ACTUALIZADO: Ahora usa day_order para diferenciar días duplicados
+    ✅ FIX: Crear workouts con completed=False
+    ✅ FIX: Cambiar URL add_set por add-set
     """
     serializer_class = WorkoutLogSerializer
     permission_classes = [IsAuthenticated]
@@ -31,8 +33,43 @@ class WorkoutLogViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """
         ✅ CRÍTICO: Asignar el usuario autenticado al crear el log
+        ✅ FIX: Forzar completed=False
         """
-        serializer.save(user=self.request.user)
+        # Asegurarse de que completed sea False
+        serializer.save(user=self.request.user, completed=False)
+    
+    # ✅ FIX: Cambiar nombre del action de add_set a add-set
+    @action(detail=True, methods=['post'], url_path='add-set')  # ← CAMBIO AQUÍ
+    def add_set(self, request, pk=None):
+        """
+        Agregar un set a un workout log
+        
+        ✅ URL CORREGIDA: /api/v1/tracking/workouts/{id}/add-set/
+        """
+        workout_log = self.get_object()
+        
+        # Crear el set log
+        data = request.data.copy()
+        data['workout_log'] = workout_log.id
+        
+        serializer = SetLogSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['patch'], url_path='mark-completed')
+    def mark_completed(self, request, pk=None):
+        """
+        Marcar un workout como completado
+        """
+        workout_log = self.get_object()
+        workout_log.completed = True
+        workout_log.save()
+        
+        serializer = self.get_serializer(workout_log)
+        return Response(serializer.data)
     
     @action(detail=False, methods=['post'])
     def toggle_completion(self, request):
